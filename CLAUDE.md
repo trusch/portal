@@ -7,7 +7,7 @@ Single self-contained `index.html` — a mobile-first showcase app (gyro-anchore
 - ONE file, zero dependencies, no build step. Everything inline.
 - Public repo `trusch/portal`, deployed via GitHub Pages from `main` root. Pushing to `main` is allowed for this repo.
 - The JS `mapJS()` MUST stay mathematically identical to the shader `map()` — it is used for spawn search and glide collision.
-- Audio changes must keep the mobile unlock dance (suspended AudioContext + gesture-end resume kicks) intact.
+- Audio changes must keep the mobile unlock dance (suspended AudioContext + gesture-end resume kicks) and the iPad audio-session promotion (audioSession.type='playback' + silent <audio> keepalive) intact.
 
 ## Verification
 
