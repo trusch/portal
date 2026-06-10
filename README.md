@@ -18,7 +18,8 @@ Your phone becomes a magic lens. On the other side of the glass stands an infini
 | Gesture | Effect |
 |---|---|
 | **Move the phone** | Look around — the world is fixed to real space |
-| **Hold a finger** on the glass | Glide forward into the structure (collision-aware) |
+| **Hold a finger** on the glass | Glide forward into the structure (asymptotic — you never hit a wall) |
+| **Pinch** | Zoom in/out along your view — the dive never ends |
 | **Double-tap** | Send a pulse of light rippling through the dimension |
 | **Drag** | Look around manually (fallback without a gyroscope) |
 

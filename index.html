@@ -102,8 +102,8 @@
   <div class="card">
     <h2>PORTAL</h2>
     <div class="sub">a window into another dimension</div>
-    <p>Your phone is a magic lens. The world on the other side of the glass is an infinite Apollonian fractal — a foam cathedral with no walls and no end — rendered by raymarching a distance field in a single GPU shader. It is anchored to <i>real space</i> through your gyroscope: turn around, look up, and the dimension stays put, as if it were standing behind reality all along.</p>
-    <p><b>Move the phone</b> to look. <b>Hold a finger</b> on the glass to glide forward. <b>Double-tap</b> to send a pulse of light through the dimension. Drag to look if you have no gyroscope.</p>
+    <p>Your phone is a magic lens. The world on the other side of the glass is an infinite Apollonian fractal — a living foam cathedral that breathes, slowly growing and dissolving around you, while three light spirits drift at your side. Rendered by raymarching a distance field in a single GPU shader. It is anchored to <i>real space</i> through your gyroscope: turn around, look up, and the dimension stays put, as if it were standing behind reality all along.</p>
+    <p><b>Move the phone</b> to look. <b>Hold a finger</b> on the glass to glide forward. <b>Pinch</b> to zoom — the dive never ends. <b>Double-tap</b> to send a pulse of light through the dimension. Drag to look if you have no gyroscope.</p>
     <h3>The origin</h3>
     <p>This app was created by an AI. The challenge began with one prompt:</p>
     <blockquote>"I want to test your capabilities. Create a mobile first webapp that shows what you are capable of and will blow not just my mind but anybody's mind. It should get millions of views if I posted a short video of it. This level of awesome. It should be a self contained webapp."</blockquote>
@@ -149,13 +149,15 @@ const fsSource = `
   uniform vec3 uColA, uColB, uColC;  // palette
   uniform float uPulseT;      // seconds since last pulse (large = none)
   uniform float uGlowAmt;
+  uniform vec3 uSpirit0, uSpirit1, uSpirit2;
+  uniform vec3 uSpiritCol0, uSpiritCol1, uSpiritCol2;
 
   /* Apollonian sphere-packing distance field (after iq).
      trap accumulates inversion radii for coloring. */
   float map (vec3 p, out float trap) {
     float s = 1.0;
     trap = 1e9;
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 10; i++) {
       p = -1.0 + 2.0 * fract(0.5 * p + 0.5);
       float r2 = dot(p, p);
       trap = min(trap, r2);
@@ -226,6 +228,24 @@ const fsSource = `
       /* distance fog into the dimension's own air */
       col = mix(col, bg, 1.0 - exp(-0.13 * t * t));
     }
+    /* spirits: drifting light companions (analytic ray-point glow) */
+    {
+      vec3 sp = uSpirit0 - ro;
+      float tp = clamp(dot(sp, rd), 0.0, FAR);
+      float dd = length(sp - rd * tp);
+      float vis = tp < t + 0.1 ? 1.0 : 0.25;
+      col += uSpiritCol0 * (exp(-dd * 30.0) * 1.0 + exp(-dd * 6.0) * 0.05) * vis;
+      sp = uSpirit1 - ro;
+      tp = clamp(dot(sp, rd), 0.0, FAR);
+      dd = length(sp - rd * tp);
+      vis = tp < t + 0.1 ? 1.0 : 0.25;
+      col += uSpiritCol1 * (exp(-dd * 30.0) * 1.0 + exp(-dd * 6.0) * 0.05) * vis;
+      sp = uSpirit2 - ro;
+      tp = clamp(dot(sp, rd), 0.0, FAR);
+      dd = length(sp - rd * tp);
+      vis = tp < t + 0.1 ? 1.0 : 0.25;
+      col += uSpiritCol2 * (exp(-dd * 30.0) * 1.0 + exp(-dd * 6.0) * 0.05) * vis;
+    }
     /* atmosphere accumulated along the ray */
     col += uColB * glow * uGlowAmt;
     if (uPulseT < 6.0) col += uColC * glow * exp(-uPulseT * 1.2) * 0.8;
@@ -252,7 +272,7 @@ gl.linkProgram(prog);
 if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) console.error(gl.getProgramInfoLog(prog));
 gl.useProgram(prog);
 const U = {};
-['uRes','uTime','uCam','uPos','uK','uColA','uColB','uColC','uPulseT','uGlowAmt'].forEach(n => U[n] = gl.getUniformLocation(prog, n));
+['uRes','uTime','uCam','uPos','uK','uColA','uColB','uColC','uPulseT','uGlowAmt','uSpirit0','uSpirit1','uSpirit2','uSpiritCol0','uSpiritCol1','uSpiritCol2'].forEach(n => U[n] = gl.getUniformLocation(prog, n));
 const quad = gl.createBuffer();
 gl.bindBuffer(gl.ARRAY_BUFFER, quad);
 gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, -1,1, 1,1, 1,-1]), gl.STATIC_DRAW);
@@ -302,7 +322,7 @@ function lerpDim (dt) {
 function fracf (x) { return x - Math.floor(x); }
 function mapJS (x, y, z, K) {
   let s = 1.0;
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 10; i++) {
     x = -1 + 2 * fracf(0.5 * x + 0.5);
     y = -1 + 2 * fracf(0.5 * y + 0.5);
     z = -1 + 2 * fracf(0.5 * z + 0.5);
@@ -389,13 +409,21 @@ let gliding = false, glideSpeed = 0;
 let pulseTime = -100;
 let drag = null;
 let lastTap = { t: 0, x: 0, y: 0 };
+const pointers = new Map();
+let pinch = null;
+function pinchDist () {
+  const pts = [...pointers.values()];
+  return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+}
 
 window.addEventListener('pointerdown', e => {
   if (e.target.closest && e.target.closest('#ui, #about')) return;
   lastInteraction = performance.now();
   if (!opened) open();
   Audio.resume();
-  drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false, t: performance.now() };
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pointers.size === 2) { pinch = { d: pinchDist() }; drag = null; }
+  else if (pointers.size === 1) drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false, t: performance.now() };
   const now = performance.now();
   if (now - lastTap.t < 320 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 48) {
     pulse();
@@ -403,6 +431,15 @@ window.addEventListener('pointerdown', e => {
   } else lastTap = { t: now, x: e.clientX, y: e.clientY };
 });
 window.addEventListener('pointermove', e => {
+  const pt = pointers.get(e.pointerId);
+  if (pt) { pt.x = e.clientX; pt.y = e.clientY; }
+  if (pinch && pointers.size >= 2) {
+    lastInteraction = performance.now();
+    const nd = pinchDist();
+    dollyV += (nd - pinch.d) / canvas.clientHeight * 1.4;
+    pinch.d = nd;
+    return;
+  }
   if (!drag || e.pointerId !== drag.id) return;
   lastInteraction = performance.now();
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
@@ -413,7 +450,11 @@ window.addEventListener('pointermove', e => {
     drag.x = e.clientX; drag.y = e.clientY;
   }
 });
-const endDrag = e => { if (drag && e.pointerId === drag.id) drag = null; };
+const endDrag = e => {
+  pointers.delete(e.pointerId);
+  if (pointers.size < 2) pinch = null;
+  if (drag && e.pointerId === drag.id) drag = null;
+};
 window.addEventListener('pointerup', endDrag);
 window.addEventListener('pointercancel', endDrag);
 
@@ -436,17 +477,78 @@ function open () {
                      const h = document.getElementById('hint'); if (h) h.remove(); }, 2400);
 }
 
+/* the world breathes: the fold constant oscillates slowly, so the whole
+   architecture grows and dissolves; kNow feeds shader AND JS physics */
+let kNow = DIMENSIONS[0].k;
+function breathe (now) {
+  kNow = cur.k + 0.022 * Math.sin(now * 0.00019) + 0.011 * Math.sin(now * 0.00041 + 1.7);
+  /* if the breathing world engulfs the camera, nudge it back into open air */
+  if (mapJS(pos[0], pos[1], pos[2], kNow) < 0.0005) {
+    const e = 0.001;
+    const d0 = mapJS(pos[0], pos[1], pos[2], kNow);
+    let gx = (mapJS(pos[0] + e, pos[1], pos[2], kNow) - d0) / e;
+    let gy = (mapJS(pos[0], pos[1] + e, pos[2], kNow) - d0) / e;
+    let gz = (mapJS(pos[0], pos[1], pos[2] + e, kNow) - d0) / e;
+    const gl_ = Math.hypot(gx, gy, gz) || 1;
+    pos[0] += gx / gl_ * 0.0008; pos[1] += gy / gl_ * 0.0008; pos[2] += gz / gl_ * 0.0008;
+  }
+}
+
+/* three light spirits drift with you through the dimension */
+const SPIRITS = [
+  { r: 0.15, a: 0.31, b: 0.43, c: 0.23, p: 0.0 },
+  { r: 0.25, a: 0.21, b: 0.33, c: 0.41, p: 2.1 },
+  { r: 0.36, a: 0.13, b: 0.27, c: 0.19, p: 4.2 },
+];
+function spiritPos (i, now) {
+  const s = SPIRITS[i], t = now / 1000;
+  return [pos[0] + s.r * Math.sin(s.a * t + s.p),
+          pos[1] + s.r * Math.sin(s.b * t + s.p * 1.3),
+          pos[2] + s.r * Math.cos(s.c * t + s.p)];
+}
+
 /* glide forward while a finger rests on the glass (collision-aware) */
 function glide (dt, mat) {
-  const want = drag && !drag.moved && performance.now() - drag.t > 240 ? 1 : 0;
-  glideSpeed += ((want * 0.16) - glideSpeed) * (1 - Math.exp(-dt * 3));
-  Audio.wind(glideSpeed / 0.16);
-  if (glideSpeed < 0.0015) return;
-  const dir = forwardDir(mat);
-  const step = glideSpeed * dt;
+  const idle = opened && performance.now() - lastInteraction > 6000;
+  const held = drag && !drag.moved && pointers.size === 1 && performance.now() - drag.t > 240;
+  const want = held ? 1 : (idle ? 0.45 : 0);
+  if (idle && !hasGyro) steer(dt, mat);
+  const de = mapJS(pos[0], pos[1], pos[2], kNow);
+  // speed proportional to the distance field: you approach structure
+  // asymptotically and dive into gaps indefinitely instead of hitting a wall
+  const maxv = Math.min(Math.max(de * 2.6, 0.004), 0.24);
+  glideSpeed += ((want * maxv) - glideSpeed) * (1 - Math.exp(-dt * 3));
+  if (glideSpeed < 1e-5) { Audio.wind(Math.min(1, Math.abs(dollyV) * 5)); return; }
+  moveAlong(forwardDir(mat), glideSpeed * dt);
+  Audio.wind(Math.min(1, glideSpeed / 0.12 + Math.abs(dollyV) * 5));
+}
+/* pinch dolly: zoom in/out along the view direction, same asymptotic rule */
+let dollyV = 0;
+function steer (dt, mat) {
+  /* probe distance field left/right/up/down of the view; turn toward open space */
+  const f = forwardDir(mat);
+  const right = [mat[0], mat[1], mat[2]], up = [mat[3], mat[4], mat[5]];
+  const probe = (dx, dy) => {
+    let d = [f[0] + dx * right[0] + dy * up[0], f[1] + dx * right[1] + dy * up[1], f[2] + dx * right[2] + dy * up[2]];
+    const l = Math.hypot(d[0], d[1], d[2]);
+    return mapJS(pos[0] + d[0] / l * 0.07, pos[1] + d[1] / l * 0.07, pos[2] + d[2] / l * 0.07, kNow);
+  };
+  yawOff   -= (probe(0.4, 0) - probe(-0.4, 0)) * dt * 1.6;
+  pitchOff += (probe(0, 0.4) - probe(0, -0.4)) * dt * 1.6;
+  pitchOff = Math.max(-1.25, Math.min(1.25, pitchOff));
+}
+function dolly (dt, mat) {
+  if (Math.abs(dollyV) < 1e-5) { dollyV = 0; return; }
+  const de = mapJS(pos[0], pos[1], pos[2], kNow);
+  const scale = Math.min(Math.max(de * 3.0, 0.002), 0.5);
+  moveAlong(forwardDir(mat), dollyV * scale * dt * 60);
+  dollyV *= Math.exp(-dt * 5);
+}
+function moveAlong (dir, step) {
+  if (Math.abs(step) < 1e-7) return;
   const nx = pos[0] + dir[0] * step, ny = pos[1] + dir[1] * step, nz = pos[2] + dir[2] * step;
-  if (mapJS(nx, ny, nz, cur.k) > 0.012) { pos[0] = nx; pos[1] = ny; pos[2] = nz; }
-  else glideSpeed *= 0.6; // soft stop at the structure
+  // never penetrate, but no hard stop — the asymptotic speed does the braking
+  if (step < 0 || mapJS(nx, ny, nz, kNow) > 0.0004) { pos[0] = nx; pos[1] = ny; pos[2] = nz; }
 }
 
 /* ---------------- audio ---------------- */
@@ -522,7 +624,7 @@ const Audio = (() => {
         bell(NOTES[(Math.random() * NOTES.length) | 0], 0.12 + Math.random() * 0.1);
       }
       scheduleBell();
-    }, 6000 + Math.random() * 7000);
+    }, 3500 + Math.random() * 4500);
   }
   function bell (freq, vol) {
     if (!ctx || muted) return;
@@ -642,20 +744,29 @@ function tick (now) {
   resizeCanvas();
 
   lerpDim(dt);
+  breathe(now);
   const mat = camMatrix(dt);
   glide(dt, mat);
+  dolly(dt, mat);
 
   gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
   gl.uniform2f(U.uRes, canvas.width, canvas.height);
   gl.uniform1f(U.uTime, now / 1000);
   gl.uniformMatrix3fv(U.uCam, false, mat);
   gl.uniform3f(U.uPos, pos[0], pos[1], pos[2]);
-  gl.uniform1f(U.uK, cur.k);
+  gl.uniform1f(U.uK, kNow);
   gl.uniform3f(U.uColA, cur.a[0], cur.a[1], cur.a[2]);
   gl.uniform3f(U.uColB, cur.b[0], cur.b[1], cur.b[2]);
   gl.uniform3f(U.uColC, cur.c[0], cur.c[1], cur.c[2]);
   gl.uniform1f(U.uPulseT, (now - pulseTime) / 1000);
   gl.uniform1f(U.uGlowAmt, cur.glow);
+  const s0 = spiritPos(0, now), s1 = spiritPos(1, now), s2 = spiritPos(2, now);
+  gl.uniform3f(U.uSpirit0, s0[0], s0[1], s0[2]);
+  gl.uniform3f(U.uSpirit1, s1[0], s1[1], s1[2]);
+  gl.uniform3f(U.uSpirit2, s2[0], s2[1], s2[2]);
+  gl.uniform3f(U.uSpiritCol0, cur.c[0] * 1.1, cur.c[1] * 1.1, cur.c[2] * 1.1);
+  gl.uniform3f(U.uSpiritCol1, cur.b[0], cur.b[1], cur.b[2]);
+  gl.uniform3f(U.uSpiritCol2, 1.0, 0.95, 0.88);
   gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
 
   if (wantCapture) capture();
