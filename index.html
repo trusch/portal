@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#030308">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>PORTAL — a window into another dimension</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; overflow:hidden; background:#030308; touch-action:none; overscroll-behavior:none; }
+  body { font-family:-apple-system, 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, sans-serif; user-select:none; -webkit-user-select:none; }
+  #c { position:fixed; inset:0; width:100%; height:100%; display:block; }
+  #veil { position:fixed; inset:0; background:#030308; z-index:9; pointer-events:none; transition:opacity 2.2s ease; }
+  #hint {
+    position:fixed; left:0; right:0; bottom:16vh; text-align:center; z-index:11; pointer-events:none;
+    color:rgba(255,255,255,.6); font-size:13px; letter-spacing:.34em; text-transform:uppercase; font-weight:300;
+    animation:pulse 2.6s ease-in-out infinite; transition:opacity .6s ease;
+  }
+  #hint b { display:block; font-weight:200; font-size:10px; letter-spacing:.5em; margin-top:10px; color:rgba(255,255,255,.3); }
+  @keyframes pulse { 0%,100%{opacity:.35} 50%{opacity:1} }
+  #brand {
+    position:fixed; top:calc(env(safe-area-inset-top, 0px) + 16px); left:0; right:0; text-align:center; z-index:5;
+    color:rgba(255,255,255,.8); font-weight:200; font-size:15px; letter-spacing:.6em; text-indent:.6em;
+    opacity:0; transition:opacity 1.5s ease .5s; pointer-events:none;
+  }
+  #brand span { display:block; font-size:8px; letter-spacing:.3em; color:rgba(255,255,255,.28); margin-top:5px; }
+  #ui {
+    position:fixed; bottom:calc(env(safe-area-inset-bottom, 0px) + 18px); left:50%; transform:translateX(-50%) translateY(90px);
+    display:flex; align-items:center; gap:14px; padding:12px 18px; border-radius:999px; z-index:6;
+    background:rgba(14,15,30,.45); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+    border:1px solid rgba(255,255,255,.09); box-shadow:0 8px 40px rgba(0,0,0,.5);
+    transition:transform .9s cubic-bezier(.2,.9,.25,1.2), opacity .9s ease; opacity:0; pointer-events:none;
+  }
+  #ui.show { transform:translateX(-50%) translateY(0); opacity:1; pointer-events:auto; }
+  .dim {
+    width:30px; height:30px; border-radius:50%; border:2px solid transparent; cursor:pointer; padding:0;
+    transition:transform .25s ease, border-color .25s ease, box-shadow .25s ease; outline:none;
+  }
+  .dim[data-d="0"] { background:radial-gradient(circle at 35% 35%, #ffd9a0, #c47a2c 55%, #2a1505); }
+  .dim[data-d="1"] { background:radial-gradient(circle at 35% 35%, #e0b3ff, #7a2ccf 55%, #14052a); }
+  .dim[data-d="2"] { background:radial-gradient(circle at 35% 35%, #c2fbff, #2c9fc4 55%, #051f2a); }
+  .dim.on { border-color:rgba(255,255,255,.95); transform:scale(1.22); box-shadow:0 0 16px rgba(255,255,255,.35); }
+  .sep { width:1px; height:22px; background:rgba(255,255,255,.14); }
+  .ib {
+    width:34px; height:34px; border-radius:50%; border:none; background:rgba(255,255,255,.07); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,.85); transition:background .25s, transform .15s;
+  }
+  .ib:active { transform:scale(.88); }
+  .ib.off { color:rgba(255,255,255,.28); }
+  .ib svg { width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  #toast {
+    position:fixed; top:calc(env(safe-area-inset-top,0px) + 60px); left:50%; transform:translateX(-50%);
+    background:rgba(14,15,30,.7); backdrop-filter:blur(12px); color:rgba(255,255,255,.85); z-index:20;
+    padding:8px 18px; border-radius:999px; font-size:12px; letter-spacing:.15em; border:1px solid rgba(255,255,255,.1);
+    opacity:0; transition:opacity .4s ease; pointer-events:none;
+  }
+  #about {
+    position:fixed; inset:0; z-index:30; display:flex; align-items:center; justify-content:center; padding:20px;
+    background:rgba(3,3,8,.55); backdrop-filter:blur(22px); -webkit-backdrop-filter:blur(22px);
+    opacity:0; pointer-events:none; transition:opacity .35s ease;
+  }
+  #about.open { opacity:1; pointer-events:auto; }
+  #about .card {
+    max-width:420px; max-height:calc(100vh - 80px); overflow-y:auto; -webkit-overflow-scrolling:touch;
+    background:rgba(14,15,30,.72); border:1px solid rgba(255,255,255,.1); border-radius:24px;
+    padding:28px 26px; color:rgba(255,255,255,.82); font-weight:300; font-size:13.5px; line-height:1.75;
+    box-shadow:0 20px 80px rgba(0,0,0,.6);
+  }
+  #about h2 { font-weight:200; font-size:22px; letter-spacing:.5em; text-indent:.5em; text-align:center; margin-bottom:4px; color:#fff; }
+  #about h3 { font-weight:400; font-size:10px; letter-spacing:.3em; text-transform:uppercase; color:rgba(255,255,255,.45); margin:20px 0 8px; }
+  #about .sub { text-align:center; font-size:10px; letter-spacing:.32em; color:rgba(255,255,255,.35); margin-bottom:18px; text-transform:uppercase; }
+  #about blockquote {
+    border-left:2px solid rgba(120,160,255,.5); padding:10px 14px; margin:8px 0;
+    background:rgba(120,160,255,.06); border-radius:0 12px 12px 0; font-style:italic; color:rgba(255,255,255,.7); font-size:12.5px;
+  }
+  #about .tech { color:rgba(255,255,255,.55); font-size:12px; }
+  #about .close {
+    display:block; margin:22px auto 0; padding:10px 34px; border-radius:999px; border:1px solid rgba(255,255,255,.18);
+    background:rgba(255,255,255,.08); color:#fff; font-size:12px; letter-spacing:.25em; text-transform:uppercase; cursor:pointer;
+  }
+  #about a { color:#8fb5ff; text-decoration:none; }
+  #nogl { position:fixed; inset:0; display:none; place-items:center; color:#889; z-index:50; text-align:center; padding:2em; font-size:14px; line-height:1.7; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="veil"></div>
+<div id="hint">touch to open the portal<b>then move your phone — you're holding a window</b></div>
+<div id="brand">PORTAL<span>a window into another dimension</span></div>
+<div id="ui">
+  <button class="dim on" data-d="0" aria-label="dimension sanctum"></button>
+  <button class="dim" data-d="1" aria-label="dimension void bloom"></button>
+  <button class="dim" data-d="2" aria-label="dimension hyperglass"></button>
+  <div class="sep"></div>
+  <button class="ib" id="snd" aria-label="toggle sound"><svg viewBox="0 0 24 24"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path id="sndwave" d="M15.5 8.5a5 5 0 010 7M18.5 5.5a9 9 0 010 13"/></svg></button>
+  <button class="ib" id="cam" aria-label="save image"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg></button>
+  <button class="ib" id="info" aria-label="about"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.2"/><path d="M12 11v6"/><path d="M12 7.2v.2"/></svg></button>
+</div>
+<div id="about">
+  <div class="card">
+    <h2>PORTAL</h2>
+    <div class="sub">a window into another dimension</div>
+    <p>Your phone is a magic lens. The world on the other side of the glass is an infinite Apollonian fractal — a foam cathedral with no walls and no end — rendered by raymarching a distance field in a single GPU shader. It is anchored to <i>real space</i> through your gyroscope: turn around, look up, and the dimension stays put, as if it were standing behind reality all along.</p>
+    <p><b>Move the phone</b> to look. <b>Hold a finger</b> on the glass to glide forward. <b>Double-tap</b> to send a pulse of light through the dimension. Drag to look if you have no gyroscope.</p>
+    <h3>The origin</h3>
+    <p>This app was created by an AI. The challenge began with one prompt:</p>
+    <blockquote>"I want to test your capabilities. Create a mobile first webapp that shows what you are capable of and will blow not just my mind but anybody's mind. It should get millions of views if I posted a short video of it. This level of awesome. It should be a self contained webapp."</blockquote>
+    <p>The first answer was <a href="https://trusch.github.io/flux/" target="_blank" rel="noopener">FLUX</a>. PORTAL was idea #1 on the shortlist — and the follow-up was simply: <i>"Build 1 and 2 independently as their own projects!"</i> Designed, written and verified by <b>Claude</b>, running on Anthropic's <b>claude&#8209;fable&#8209;5</b> model, as Claude&nbsp;Code.</p>
+    <h3>Under the hood</h3>
+    <p class="tech">One self-contained HTML file, zero libraries. A fragment shader raymarches an Apollonian sphere-packing distance field (8 fold iterations, ~90 march steps) with orbit-trap coloring, accumulated atmosphere glow, fog and a traveling pulse shell. Device orientation becomes a camera quaternion (W3C ZXY Euler → quaternion → ray basis), smoothed by slerp, with drag-look fallback. Resolution scales adaptively to hold frame rate. Sound — drone, distance bells, wind that rises as you glide — is synthesized from raw oscillators with a runtime-generated convolution reverb.</p>
+    <p class="tech" style="margin-top:10px">Source: <a href="https://github.com/trusch/portal" target="_blank" rel="noopener">github.com/trusch/portal</a> · Sibling: <a href="https://github.com/trusch/flux" target="_blank" rel="noopener">FLUX</a></p>
+    <button class="close" id="ab-close">return to the window</button>
+  </div>
+</div>
+<div id="toast"></div>
+<div id="nogl">your browser doesn't support WebGL —<br>PORTAL needs a GPU to open.</div>
+<script>
+'use strict';
+/* ============================================================
+   PORTAL — a window into another dimension
+   gyro-anchored raymarched fractal world + generative audio
+   one file. no libraries. made by Claude.
+   ============================================================ */
+
+const canvas = document.getElementById('c');
+let opened = false;
+let dimension = 0;
+
+/* ---------------- WebGL ---------------- */
+const gl = canvas.getContext('webgl2', { alpha:false, depth:false, stencil:false, antialias:false })
+        || canvas.getContext('webgl',  { alpha:false, depth:false, stencil:false, antialias:false });
+if (!gl) { document.getElementById('nogl').style.display = 'grid'; throw new Error('no webgl'); }
+
+const vsSource = `
+  attribute vec2 aPosition;
+  varying vec2 vUv;
+  void main () { vUv = aPosition; gl_Position = vec4(aPosition, 0.0, 1.0); }`;
+
+const fsSource = `
+  precision highp float;
+  varying vec2 vUv;
+  uniform vec2 uRes;
+  uniform float uTime;
+  uniform mat3 uCam;          // camera ray basis (device orientation + drag)
+  uniform vec3 uPos;          // camera position in the dimension
+  uniform float uK;           // apollonian inversion constant
+  uniform vec3 uColA, uColB, uColC;  // palette
+  uniform float uPulseT;      // seconds since last pulse (large = none)
+  uniform float uGlowAmt;
+
+  /* Apollonian sphere-packing distance field (after iq).
+     trap accumulates inversion radii for coloring. */
+  float map (vec3 p, out float trap) {
+    float s = 1.0;
+    trap = 1e9;
+    for (int i = 0; i < 8; i++) {
+      p = -1.0 + 2.0 * fract(0.5 * p + 0.5);
+      float r2 = dot(p, p);
+      trap = min(trap, r2);
+      float k = uK / r2;
+      p *= k;
+      s *= k;
+    }
+    return 0.25 * abs(p.y) / s;
+  }
+  float mapFast (vec3 p) { float t; return map(p, t); }
+
+  vec3 calcNormal (vec3 p) {
+    const vec2 e = vec2(0.0008, -0.0008);
+    return normalize(
+      e.xyy * mapFast(p + e.xyy) +
+      e.yyx * mapFast(p + e.yyx) +
+      e.yxy * mapFast(p + e.yxy) +
+      e.xxx * mapFast(p + e.xxx));
+  }
+
+  void main () {
+    vec2 uv = vUv * vec2(uRes.x / uRes.y, 1.0);
+    vec3 rd = normalize(uCam * normalize(vec3(uv, -1.45)));
+    vec3 ro = uPos;
+
+    float t = 0.0, trap = 1e9, glow = 0.0, d = 0.0;
+    float steps = 0.0;
+    const float FAR = 9.0;
+    for (int i = 0; i < 90; i++) {
+      vec3 pos = ro + rd * t;
+      d = map(pos, trap);
+      glow += exp(-d * 130.0) * 0.005;
+      if (d < 0.0006 * (0.4 + t) || t > FAR) break;
+      t += d * 0.72;
+      steps += 1.0;
+    }
+
+    vec3 col;
+    vec3 bg = uColC * 0.04 * (1.0 - 0.35 * length(vUv));
+    if (t > FAR) {
+      col = bg;
+    } else {
+      vec3 pos = ro + rd * t;
+      vec3 n = calcNormal(pos);
+      float ao = clamp(1.0 - steps / 70.0, 0.0, 1.0);
+      ao = ao * ao;
+      /* palette from orbit trap */
+      float tr = clamp(trap * 2.2, 0.0, 1.0);
+      vec3 base = mix(uColA, uColB, tr);
+      base = mix(base, uColC, smoothstep(0.6, 1.0, tr) * 0.6);
+      /* headlight + sky light */
+      float dif = clamp(dot(n, -rd), 0.0, 1.0);
+      float sky = clamp(0.5 + 0.5 * n.y, 0.0, 1.0);
+      col = base * (0.09 + 0.95 * dif * dif) + uColC * sky * 0.06;
+      vec3 ldir = normalize(vec3(0.5, 0.75, -0.4));
+      float spe = pow(clamp(dot(reflect(rd, n), ldir), 0.0, 1.0), 40.0);
+      col += uColC * spe * 0.7;
+      /* emissive veins where the trap is tight */
+      col += uColB * smoothstep(0.05, 0.0, trap) * 1.1;
+      col *= ao;
+      /* light pulse: a bright shell expanding from the camera */
+      if (uPulseT < 6.0) {
+        float pr = uPulseT * 1.6;
+        float shell = exp(-abs(t - pr) * 6.0) * exp(-uPulseT * 0.6);
+        col += uColC * shell * 2.2;
+        col += base * shell * 1.2;
+      }
+      /* distance fog into the dimension's own air */
+      col = mix(col, bg, 1.0 - exp(-0.13 * t * t));
+    }
+    /* atmosphere accumulated along the ray */
+    col += uColB * glow * uGlowAmt;
+    if (uPulseT < 6.0) col += uColC * glow * exp(-uPulseT * 1.2) * 0.8;
+
+    /* tone map + gamma + vignette */
+    col = col / (1.0 + col);
+    col = pow(col, vec3(0.4545));
+    col = mix(col, col * col * (3.0 - 2.0 * col), 0.55);
+    col *= 1.0 - 0.32 * dot(vUv * 0.7, vUv * 0.7);
+    gl_FragColor = vec4(col, 1.0);
+  }`;
+
+function compile (type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s));
+  return s;
+}
+const prog = gl.createProgram();
+gl.attachShader(prog, compile(gl.VERTEX_SHADER, vsSource));
+gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, fsSource));
+gl.linkProgram(prog);
+if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) console.error(gl.getProgramInfoLog(prog));
+gl.useProgram(prog);
+const U = {};
+['uRes','uTime','uCam','uPos','uK','uColA','uColB','uColC','uPulseT','uGlowAmt'].forEach(n => U[n] = gl.getUniformLocation(prog, n));
+const quad = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, -1,1, 1,1, 1,-1]), gl.STATIC_DRAW);
+const aPos = gl.getAttribLocation(prog, 'aPosition');
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+gl.enableVertexAttribArray(aPos);
+const quadIdx = gl.createBuffer();
+gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, quadIdx);
+gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array([0,1,2, 0,2,3]), gl.STATIC_DRAW);
+
+/* adaptive internal resolution */
+let resScale = 0.55;
+function resizeCanvas () {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.max(2, Math.floor(canvas.clientWidth * dpr * resScale));
+  const h = Math.max(2, Math.floor(canvas.clientHeight * dpr * resScale));
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+}
+resizeCanvas();
+
+/* ---------------- dimensions ---------------- */
+const DIMENSIONS = [
+  { name: 'sanctum',    k: 1.43, glow: 0.9,
+    a: [0.85, 0.52, 0.18], b: [1.00, 0.80, 0.40], c: [0.45, 0.75, 0.85] },
+  { name: 'void bloom', k: 1.27, glow: 1.25,
+    a: [0.30, 0.05, 0.45], b: [0.95, 0.25, 0.85], c: [0.45, 0.30, 1.00] },
+  { name: 'hyperglass', k: 1.55, glow: 0.7,
+    a: [0.10, 0.35, 0.45], b: [0.40, 0.95, 1.00], c: [0.85, 0.95, 1.00] },
+];
+/* smooth palette/param transitions */
+const cur = { k: DIMENSIONS[0].k, glow: DIMENSIONS[0].glow,
+              a: [...DIMENSIONS[0].a], b: [...DIMENSIONS[0].b], c: [...DIMENSIONS[0].c] };
+function lerpDim (dt) {
+  const tgt = DIMENSIONS[dimension];
+  const f = 1 - Math.exp(-dt * 2.2);
+  cur.k += (tgt.k - cur.k) * f;
+  cur.glow += (tgt.glow - cur.glow) * f;
+  for (let i = 0; i < 3; i++) {
+    cur.a[i] += (tgt.a[i] - cur.a[i]) * f;
+    cur.b[i] += (tgt.b[i] - cur.b[i]) * f;
+    cur.c[i] += (tgt.c[i] - cur.c[i]) * f;
+  }
+}
+/* ---------------- the dimension's geometry, in JS ----------------
+   The same Apollonian map as the shader — used for spawning in open
+   space and for collision while gliding. */
+function fracf (x) { return x - Math.floor(x); }
+function mapJS (x, y, z, K) {
+  let s = 1.0;
+  for (let i = 0; i < 8; i++) {
+    x = -1 + 2 * fracf(0.5 * x + 0.5);
+    y = -1 + 2 * fracf(0.5 * y + 0.5);
+    z = -1 + 2 * fracf(0.5 * z + 0.5);
+    const r2 = x * x + y * y + z * z;
+    const k = K / r2;
+    x *= k; y *= k; z *= k; s *= k;
+  }
+  return 0.25 * Math.abs(y) / s;
+}
+const pos = [0.12, 0.55, 0.08];
+(function findOpenSpot () {
+  let best = -1;
+  for (let x = 0.02; x < 0.5; x += 0.04)
+    for (let y = 0.25; y < 0.95; y += 0.03)
+      for (let z = 0.02; z < 0.5; z += 0.04) {
+        const d = mapJS(x, y, z, DIMENSIONS[0].k);
+        if (d > best) { best = d; pos[0] = x; pos[1] = y; pos[2] = z; }
+      }
+})();
+
+/* ---------------- orientation → camera ---------------- */
+function quatMul (a, b) {
+  return [
+    a[3]*b[0] + a[0]*b[3] + a[1]*b[2] - a[2]*b[1],
+    a[3]*b[1] - a[0]*b[2] + a[1]*b[3] + a[2]*b[0],
+    a[3]*b[2] + a[0]*b[1] - a[1]*b[0] + a[2]*b[3],
+    a[3]*b[3] - a[0]*b[0] - a[1]*b[1] - a[2]*b[2]];
+}
+function axisQuat (x, y, z, angle) {
+  const s = Math.sin(angle / 2);
+  return [x * s, y * s, z * s, Math.cos(angle / 2)];
+}
+const D2R = Math.PI / 180;
+const Q_REMAP = axisQuat(1, 0, 0, -Math.PI / 2); // screen faces you, camera looks out the back
+let qDevice = [0, 0, 0, 1];
+let qSmooth = [0, 0, 0, 1];
+let hasGyro = false;
+function onOrientation (e) {
+  if (e.alpha == null || e.beta == null || e.gamma == null) return;
+  hasGyro = true;
+  // device frame: intrinsic Y(alpha) X(beta) Z(-gamma), then remap, then screen rotation
+  let q = quatMul(quatMul(
+    axisQuat(0, 1, 0, e.alpha * D2R),
+    axisQuat(1, 0, 0, e.beta * D2R)),
+    axisQuat(0, 0, 1, -e.gamma * D2R));
+  q = quatMul(q, Q_REMAP);
+  const screenAngle = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
+  q = quatMul(q, axisQuat(0, 0, 1, -screenAngle * D2R));
+  qDevice = q;
+}
+function listenGyro () {
+  if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function')
+    DeviceOrientationEvent.requestPermission().then(s => {
+      if (s === 'granted') window.addEventListener('deviceorientation', onOrientation);
+    }).catch(() => {});
+  else window.addEventListener('deviceorientation', onOrientation);
+}
+/* drag-look (and the only look on desktop) */
+let yawOff = 0, pitchOff = 0, idleYaw = 0;
+function camMatrix (dt) {
+  // smooth the device quaternion (nlerp with hemisphere fix)
+  let qt = qDevice;
+  let dot = qSmooth[0]*qt[0] + qSmooth[1]*qt[1] + qSmooth[2]*qt[2] + qSmooth[3]*qt[3];
+  if (dot < 0) qt = [-qt[0], -qt[1], -qt[2], -qt[3]];
+  const f = 1 - Math.exp(-dt * 14);
+  let q = qSmooth.map((v, i) => v + (qt[i] - v) * f);
+  const len = Math.hypot(q[0], q[1], q[2], q[3]) || 1;
+  q = q.map(v => v / len);
+  qSmooth = q;
+  if (!hasGyro && opened && performance.now() - lastInteraction > 5000) idleYaw += dt * 0.05;
+  const full = quatMul(quatMul(axisQuat(0, 1, 0, yawOff + idleYaw), q), axisQuat(1, 0, 0, pitchOff));
+  const [x, y, z, w] = full;
+  // column-major rotation matrix
+  return new Float32Array([
+    1 - 2*(y*y + z*z), 2*(x*y + z*w),     2*(x*z - y*w),
+    2*(x*y - z*w),     1 - 2*(x*x + z*z), 2*(y*z + x*w),
+    2*(x*z + y*w),     2*(y*z - x*w),     1 - 2*(x*x + y*y)]);
+}
+function forwardDir (m) { return [-m[6], -m[7], -m[8]]; } // camera looks down -Z
+
+/* ---------------- input ---------------- */
+let lastInteraction = 0;
+let gliding = false, glideSpeed = 0;
+let pulseTime = -100;
+let drag = null;
+let lastTap = { t: 0, x: 0, y: 0 };
+
+window.addEventListener('pointerdown', e => {
+  if (e.target.closest && e.target.closest('#ui, #about')) return;
+  lastInteraction = performance.now();
+  if (!opened) open();
+  Audio.resume();
+  drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false, t: performance.now() };
+  const now = performance.now();
+  if (now - lastTap.t < 320 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 48) {
+    pulse();
+    lastTap.t = 0;
+  } else lastTap = { t: now, x: e.clientX, y: e.clientY };
+});
+window.addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  lastInteraction = performance.now();
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  if (Math.hypot(dx, dy) > 6) drag.moved = true;
+  if (drag.moved) {
+    yawOff -= dx * 0.0042;
+    pitchOff = Math.max(-1.25, Math.min(1.25, pitchOff - dy * 0.0042));
+    drag.x = e.clientX; drag.y = e.clientY;
+  }
+});
+const endDrag = e => { if (drag && e.pointerId === drag.id) drag = null; };
+window.addEventListener('pointerup', endDrag);
+window.addEventListener('pointercancel', endDrag);
+
+function pulse () {
+  pulseTime = performance.now();
+  Audio.bell(880, 0.5);
+  Audio.sub();
+  if (navigator.vibrate) navigator.vibrate([14, 26, 10]);
+}
+function open () {
+  opened = true;
+  Audio.init();
+  listenGyro();
+  document.getElementById('veil').style.opacity = '0';
+  document.getElementById('hint').style.opacity = '0';
+  document.getElementById('brand').style.opacity = '1';
+  document.getElementById('ui').classList.add('show');
+  pulse();
+  setTimeout(() => { const v = document.getElementById('veil'); if (v) v.remove();
+                     const h = document.getElementById('hint'); if (h) h.remove(); }, 2400);
+}
+
+/* glide forward while a finger rests on the glass (collision-aware) */
+function glide (dt, mat) {
+  const want = drag && !drag.moved && performance.now() - drag.t > 240 ? 1 : 0;
+  glideSpeed += ((want * 0.16) - glideSpeed) * (1 - Math.exp(-dt * 3));
+  Audio.wind(glideSpeed / 0.16);
+  if (glideSpeed < 0.0015) return;
+  const dir = forwardDir(mat);
+  const step = glideSpeed * dt;
+  const nx = pos[0] + dir[0] * step, ny = pos[1] + dir[1] * step, nz = pos[2] + dir[2] * step;
+  if (mapJS(nx, ny, nz, cur.k) > 0.012) { pos[0] = nx; pos[1] = ny; pos[2] = nz; }
+  else glideSpeed *= 0.6; // soft stop at the structure
+}
+
+/* ---------------- audio ---------------- */
+const Audio = (() => {
+  let ctx = null, bus = null, muted = false, droneGain = null, windGain = null, windTarget = 0;
+  let pendingBell = false, unlockHooked = false, bellTimer = 0;
+  function unlock () {
+    if (!ctx || ctx.state === 'running') return;
+    ctx.resume().catch(() => {});
+    try {
+      const s = ctx.createBufferSource();
+      s.buffer = ctx.createBuffer(1, 1, 22050);
+      s.connect(ctx.destination); s.start(0);
+    } catch (e) {}
+  }
+  function hookUnlock () {
+    if (unlockHooked) return; unlockHooked = true;
+    const kick = () => unlock();
+    ['pointerdown','pointerup','touchend','click'].forEach(ev => window.addEventListener(ev, kick, true));
+    ctx.onstatechange = () => {
+      if (ctx.state === 'running' && pendingBell) { pendingBell = false; bell(880, 0.5); sub(); }
+    };
+  }
+  function init () {
+    if (ctx) return;
+    try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -20; comp.ratio.value = 5;
+    comp.connect(ctx.destination);
+    bus = ctx.createGain(); bus.gain.value = 0.9; bus.connect(comp);
+    // cavernous reverb
+    const len = ctx.sampleRate * 4.5;
+    const ir = ctx.createBuffer(2, len, ctx.sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = ir.getChannelData(ch);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2);
+    }
+    const conv = ctx.createConvolver(); conv.buffer = ir;
+    const wet = ctx.createGain(); wet.gain.value = 0.6;
+    conv.connect(wet); wet.connect(comp);
+    bus.connect(conv);
+    // deep drone
+    droneGain = ctx.createGain(); droneGain.gain.value = 0;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 220;
+    droneGain.connect(lp); lp.connect(bus);
+    [36.7, 55.0, 73.4].forEach((f, i) => {
+      const o = ctx.createOscillator(); o.type = i === 2 ? 'triangle' : 'sine'; o.frequency.value = f;
+      const g = ctx.createGain(); g.gain.value = i === 2 ? 0.10 : 0.30;
+      o.connect(g); g.connect(droneGain); o.start();
+    });
+    droneGain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 5);
+    const lfo = ctx.createOscillator(); lfo.frequency.value = 0.05;
+    const lfoG = ctx.createGain(); lfoG.gain.value = 0.045;
+    lfo.connect(lfoG); lfoG.connect(droneGain.gain); lfo.start();
+    // wind (glide)
+    const wlen = ctx.sampleRate * 2;
+    const wb = ctx.createBuffer(1, wlen, ctx.sampleRate);
+    const wd = wb.getChannelData(0);
+    for (let i = 0; i < wlen; i++) wd[i] = Math.random() * 2 - 1;
+    const wsrc = ctx.createBufferSource(); wsrc.buffer = wb; wsrc.loop = true;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 520; bp.Q.value = 0.6;
+    windGain = ctx.createGain(); windGain.gain.value = 0;
+    wsrc.connect(bp); bp.connect(windGain); windGain.connect(bus); wsrc.start();
+    hookUnlock();
+    unlock();
+    scheduleBell();
+  }
+  function scheduleBell () {
+    clearTimeout(bellTimer);
+    bellTimer = setTimeout(() => {
+      if (ctx && ctx.state === 'running' && !muted) {
+        const NOTES = [220, 261.6, 293.7, 329.6, 392.0];
+        bell(NOTES[(Math.random() * NOTES.length) | 0], 0.12 + Math.random() * 0.1);
+      }
+      scheduleBell();
+    }, 6000 + Math.random() * 7000);
+  }
+  function bell (freq, vol) {
+    if (!ctx || muted) return;
+    if (ctx.state !== 'running') { pendingBell = true; unlock(); return; }
+    const t = ctx.currentTime;
+    [1, 2.76, 5.4].forEach((partial, i) => {
+      const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = freq * partial;
+      const g = ctx.createGain();
+      const v = vol / Math.pow(2.2, i);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(v, t + 0.006);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 2.4 - i * 0.5);
+      o.connect(g); g.connect(bus);
+      o.start(t); o.stop(t + 2.6);
+    });
+  }
+  function sub () {
+    if (!ctx || muted || ctx.state !== 'running') return;
+    const t = ctx.currentTime;
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(90, t);
+    o.frequency.exponentialRampToValueAtTime(24, t + 0.7);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.5, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+    o.connect(g); g.connect(bus);
+    o.start(t); o.stop(t + 1);
+  }
+  function wind (amt) {
+    windTarget = Math.min(1, Math.max(0, amt)) * 0.22;
+    if (windGain && ctx && !muted)
+      windGain.gain.setTargetAtTime(windTarget, ctx.currentTime, 0.25);
+  }
+  function resume () { unlock(); }
+  function toggle () {
+    muted = !muted;
+    if (ctx) {
+      const t = ctx.currentTime;
+      if (droneGain) droneGain.gain.linearRampToValueAtTime(muted ? 0 : 0.15, t + 0.4);
+      if (windGain && muted) windGain.gain.setTargetAtTime(0, t, 0.1);
+    }
+    return muted;
+  }
+  return { init, resume, bell, sub, wind, toggle };
+})();
+
+/* ---------------- UI ---------------- */
+document.querySelectorAll('.dim').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.dim').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    dimension = +btn.dataset.d;
+    toast(DIMENSIONS[dimension].name);
+    pulse();
+  });
+});
+document.getElementById('snd').addEventListener('click', function () {
+  const muted = Audio.toggle();
+  this.classList.toggle('off', muted);
+  document.getElementById('sndwave').style.display = muted ? 'none' : '';
+  toast(muted ? 'sound off' : 'sound on');
+});
+document.getElementById('info').addEventListener('click', () => {
+  document.getElementById('about').classList.add('open');
+});
+document.getElementById('ab-close').addEventListener('click', () => {
+  document.getElementById('about').classList.remove('open');
+});
+let toastTimer = 0;
+function toast (msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.opacity = '1';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.style.opacity = '0'; }, 1200);
+}
+
+/* screenshot — same-frame readPixels */
+let wantCapture = false;
+document.getElementById('cam').addEventListener('click', () => { wantCapture = true; toast('capturing…'); });
+function capture () {
+  wantCapture = false;
+  const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
+  const pixels = new Uint8Array(w * h * 4);
+  gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+  const cv = document.createElement('canvas');
+  cv.width = w; cv.height = h;
+  const c2 = cv.getContext('2d');
+  const imgData = c2.createImageData(w, h);
+  const row = w * 4;
+  for (let y = 0; y < h; y++)
+    imgData.data.set(pixels.subarray(y * row, y * row + row), (h - y - 1) * row);
+  c2.putImageData(imgData, 0, 0);
+  cv.toBlob(blob => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'portal-' + Math.round(performance.now()) + '.png';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast('saved ✓');
+  }, 'image/png');
+}
+
+/* ---------------- main loop ---------------- */
+let lastTime = performance.now();
+let frameEMA = 16, lastResAdjust = 0;
+function tick (now) {
+  let dt = (now - lastTime) / 1000;
+  lastTime = now;
+  dt = Math.min(dt, 1 / 20);
+
+  frameEMA += (dt * 1000 - frameEMA) * 0.05;
+  if (now - lastResAdjust > 1500) {
+    if (frameEMA > 30 && resScale > 0.32) { resScale *= 0.85; lastResAdjust = now; }
+    else if (frameEMA < 14 && resScale < 0.8) { resScale *= 1.07; lastResAdjust = now; }
+  }
+  resizeCanvas();
+
+  lerpDim(dt);
+  const mat = camMatrix(dt);
+  glide(dt, mat);
+
+  gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+  gl.uniform2f(U.uRes, canvas.width, canvas.height);
+  gl.uniform1f(U.uTime, now / 1000);
+  gl.uniformMatrix3fv(U.uCam, false, mat);
+  gl.uniform3f(U.uPos, pos[0], pos[1], pos[2]);
+  gl.uniform1f(U.uK, cur.k);
+  gl.uniform3f(U.uColA, cur.a[0], cur.a[1], cur.a[2]);
+  gl.uniform3f(U.uColB, cur.b[0], cur.b[1], cur.b[2]);
+  gl.uniform3f(U.uColC, cur.c[0], cur.c[1], cur.c[2]);
+  gl.uniform1f(U.uPulseT, (now - pulseTime) / 1000);
+  gl.uniform1f(U.uGlowAmt, cur.glow);
+  gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+
+  if (wantCapture) capture();
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
